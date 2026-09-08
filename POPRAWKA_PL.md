@@ -21,6 +21,12 @@ pominięcie cyklu. Reguły blacklisty, listy ukrytych, aplikacji chronionych ora
 wyjątki harmonogramu nadal obowiązują. Ręczne zatrzymywanie zachowuje dotychczasowy
 sposób działania. Poprawka nie zmienia metody `force-stop` na `disable` ani `suspend`.
 
+Pierwsza kompilacja w GitHub Actions wykryła także błędną deklarację klasy
+`ShizukuUserServiceImpl` jako usługi Androida. Usunięto tę deklarację: klasę Binder
+uruchamia bezpośrednio Shizuku. Jej publiczny konstruktor jest teraz jawnie
+chroniony przed usunięciem przez R8. Świeża kopia repozytorium uruchamia kontrolę
+lint bez odwołania do nieistniejącej bazy wyciszonych ostrzeżeń.
+
 ## Co rzeczywiście sprawdzono
 
 - Skompilowano produkcyjną klasę `ForegroundAppDetector` i uruchomiono 18 testów
@@ -28,9 +34,13 @@ sposób działania. Poprawka nie zmienia metody `force-stop` na `disable` ani `s
 - Przypadki obejmują Allegro w tle, faktyczny pierwszy plan, wygaszony ekran,
   podzielony ekran, PiP, starsze i nowsze warianty pól oraz niepełne dane.
 - Dane testowe są syntetyczne; nie zawierają zrzutu z telefonu użytkownika.
-- Nie zbudowano całej aplikacji i nie testowano jej na urządzeniu. W środowisku
-  przygotowania poprawki mechanizm zatwierdzania sieci zatrzymał pobieranie
-  Android SDK i Gradle. Dlatego zgodność całego wariantu APK wymaga kompilacji.
+- Lokalne budowanie APK było niedostępne, ponieważ mechanizm zatwierdzania sieci
+  zatrzymał pobieranie Android SDK i Gradle. Budowanie przeniesiono do GitHub Actions.
+- Wynik kompilacji, podpisu APK oraz testów dla konkretnego commita należy sprawdzić
+  w workflow **Build ReAppzuku Fix**. Pierwszy przebieg przeszedł kompilację Java
+  i Kotlin, ale zatrzymał się na opisanych wyżej problemach manifestu i lint.
+- Nie testowano działania aplikacji na telefonie. Udana kompilacja nie zastępuje
+  próby zatrzymywania aplikacji na konkretnym ROM-ie.
 
 `dumpsys` nie jest stabilnym publicznym API Androida. Inny format w danym ROM-ie
 może wymagać dostosowania parsera. Odczyt stanu oraz polecenie zatrzymania nie są
@@ -71,7 +81,7 @@ W forku użyj workflow **Build ReAppzuku Fix**, znajdującego się w pliku
 Najpierw wykonuje 18 testów parsera, potem buduje wariant `fixed` i sprawdza jego
 podpis. Gotowy APK, suma SHA-256, publiczny certyfikat podpisu i identyfikator
 commita znajdą się w artefakcie `ReAppzuku-Fix-<numer>` na stronie wykonania.
-Ten workflow nie został jeszcze uruchomiony w chwili jego przygotowania.
+Status i pobieranie APK: https://github.com/jakamilek/ReAppzuku/actions
 
 Bez konfiguracji sekretu powstaje APK testowy z kluczem wygenerowanym dla danego
 uruchomienia. Kolejne takie APK mogą wymagać odinstalowania poprzedniej wersji

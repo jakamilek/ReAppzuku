@@ -75,11 +75,9 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 
-        <service
-            android:name="com.gree1d.reappzuku.core.shell.ShizukuUserServiceImpl"
-            android:exported="false"
-            android:process=":shell_service" />
-     
+        <!-- ShizukuUserServiceImpl is an IBinder created by Shizuku, not an
+             android.app.Service. Its process is configured in ShellManager. -->
+
         <service
             android:name="com.gree1d.reappzuku.service.ShappkyService"
             android:foregroundServiceType="specialUse"

@@ -91,7 +91,11 @@ android {
     }
 
     lint {
-        baseline = file("lint-baseline.xml")
+        // The upstream baseline is not versioned. A fresh checkout must run
+        // lint normally instead of aborting while creating a missing baseline.
+        if (file("lint-baseline.xml").exists()) {
+            baseline = file("lint-baseline.xml")
+        }
     }
 }
 
