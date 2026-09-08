@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application android:label="ReAppzuku Fix" tools:replace="android:label">
+        <service android:name="com.gree1d.reappzuku.utils.ShappkyBackgroundKillTile"
+            android:label="Stop background apps (Fix)" tools:replace="android:label" />
+        <service android:name="com.gree1d.reappzuku.service.AppLaunchAccessibilityService"
+            android:label="ReAppzuku Fix" tools:replace="android:label" />
+    </application>
+</manifest>

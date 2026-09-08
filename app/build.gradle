@@ -45,6 +45,15 @@ android {
             shrinkResources true
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
+        fixed {
+            initWith release
+            applicationIdSuffix ".fixed"
+            versionNameSuffix "-fgfix1"
+            // Uses the builder's locally generated key, never the upstream key.
+            signingConfig signingConfigs.debug
+            debuggable false
+            matchingFallbacks = ['release']
+        }
     }
 
     packagingOptions {
@@ -75,6 +84,7 @@ android {
     }
 
     buildFeatures {
+        buildConfig true
         aidl true
         viewBinding true
         compose true

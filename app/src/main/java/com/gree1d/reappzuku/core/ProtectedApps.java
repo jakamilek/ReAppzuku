@@ -6,6 +6,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.provider.Settings;
+import com.gree1d.reappzuku.BuildConfig;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -19,6 +20,7 @@ public final class ProtectedApps {
     }
 
     private static final Set<String> PROTECTED_PACKAGES = new HashSet<>(Arrays.asList(
+            BuildConfig.APPLICATION_ID,
             "com.gree1d.reappzuku",
             "com.google.android.gms",
             "com.google.android.gsf",

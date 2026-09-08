@@ -5,6 +5,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.SharedPreferences;
 import android.os.Handler;
+import android.os.PowerManager;
 import com.gree1d.reappzuku.core.AppDebugManager;
 import com.gree1d.reappzuku.core.AppDebugManager.Category;
 import android.widget.Toast;
@@ -88,15 +89,6 @@ public class AutoKillManager {
             AppDebugManager.d(Category.AUTO_KILL_BASE, "AutoKillManager: whitelistedApps=" + whitelistedApps);
             AppDebugManager.d(Category.AUTO_KILL_BASE, "AutoKillManager: blacklistedApps=" + blacklistedApps);
             AppDebugManager.d(Category.AUTO_KILL_BASE, "AutoKillManager: hiddenApps=" + hiddenApps);
-
-            String dumpOutput = shellManager.runShellCommandAndGetFullOutput("dumpsys activity activities");
-            AppDebugManager.d(Category.AUTO_KILL_BASE, "AutoKillManager: dumpsys output length: " + (dumpOutput == null ? "null" : dumpOutput.length()));
-            if (dumpOutput == null) {
-                AppDebugManager.w(Category.AUTO_KILL_BASE, "AutoKillManager: dumpsys returned null — aborting kill");
-                if (onComplete != null)
-                    handler.post(onComplete);
-                return;
-            }
 
             long meminfoStart = System.currentTimeMillis();
 
@@ -236,12 +228,22 @@ public class AutoKillManager {
             AppDebugManager.d(Category.AUTO_KILL_BASE, "AutoKillManager: memorySource=" + memorySource
                     + " for this cycle (per-package: PSS=" + pssCount + ", RSS=" + rssCount + ", PSS+RSS=" + mixedCount + ")");
 
-            killOrphanShellProcesses(null);
-
             boolean presetActive = new PresetManager(context).getActivePresetNumber() != 0;
 
             String currentKeyboard = ProtectedApps.getCurrentKeyboardPackage(context);
             String currentLauncher = ProtectedApps.getCurrentLauncherPackage(context);
+
+            // Memory collection can be slow: sample the UI immediately before
+            // choosing targets, rather than reusing an older activity dump.
+            ForegroundAppDetector.Snapshot foreground = readForegroundApps();
+            if (!foreground.isReliable()) {
+                AppDebugManager.w(Category.AUTO_KILL_BASE,
+                        "AutoKillManager: foreground state unavailable — skipping kill cycle");
+                completeSkippedKill(onComplete, onResult);
+                return;
+            }
+
+            killOrphanShellProcesses(null);
 
             List<String> toKill = runningPackages.stream()
                     .filter(pkg -> {
@@ -262,7 +264,7 @@ public class AutoKillManager {
                                 AppDebugManager.d(Category.AUTO_KILL_BASE, "AutoKillManager: SKIP (temp protected): " + pkg);
                                 return false;
                             }
-                            if (containsPackage(dumpOutput, pkg)) {
+                            if (foreground.protects(pkg)) {
                                 AppDebugManager.d(Category.AUTO_KILL_BASE, "AutoKillManager: SKIP (foreground): " + pkg);
                                 return false;
                             }
@@ -305,6 +307,14 @@ public class AutoKillManager {
             }
 
             if (!toKill.isEmpty()) {
+                // In particular, do not use a screen-off snapshot after the user
+                // has woken the phone and may have opened one of the targets.
+                if (foreground.isInteractive() != isDeviceInteractive()) {
+                    AppDebugManager.d(Category.AUTO_KILL_BASE,
+                            "AutoKillManager: screen state changed — skipping kill cycle");
+                    completeSkippedKill(onComplete, onResult);
+                    return;
+                }
                 recordSuccessfulKills(toKill, null, source);
 
                 Map<String, Long> newPendingRss = new HashMap<>();
@@ -734,33 +744,23 @@ public class AutoKillManager {
         }
     }
 
-    private static boolean containsPackage(String output, String packageName) {
-        if (output == null || packageName == null) return false;
+    private boolean isDeviceInteractive() {
+        PowerManager power = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+        // If the system service is unavailable, retain foreground protection.
+        return power == null || power.isInteractive();
+    }
 
-        int idx = output.indexOf(packageName);
-        if (idx == -1) {
-            AppDebugManager.d(Category.AUTO_KILL_BASE, "AutoKillManager: containsPackage: NOT FOUND in dumpsys: " + packageName);
-            return false;
-        }
+    private ForegroundAppDetector.Snapshot readForegroundApps() {
+        if (!isDeviceInteractive()) return ForegroundAppDetector.parse(null, false);
+        String dump = shellManager.runShellCommandAndGetFullOutput("dumpsys activity activities");
+        // The screen may have gone off while dumpsys was running.
+        return ForegroundAppDetector.parse(dump, isDeviceInteractive());
+    }
 
-        while (idx != -1) {
-            int end = idx + packageName.length();
-            boolean endOk = end >= output.length()
-                    || !Character.isLetterOrDigit(output.charAt(end)) && output.charAt(end) != '.';
-            boolean startOk = idx == 0
-                    || !Character.isLetterOrDigit(output.charAt(idx - 1)) && output.charAt(idx - 1) != '.';
-            if (startOk && endOk) {
-                int from = Math.max(0, idx - 40);
-                int to = Math.min(output.length(), end + 40);
-                AppDebugManager.d(Category.AUTO_KILL_BASE, "AutoKillManager: containsPackage: FOUND " + packageName
-                        + " | context: [" + output.substring(from, to).replace("\n", "↵") + "]");
-                return true;
-            }
-            idx = output.indexOf(packageName, idx + 1);
-        }
-
-        AppDebugManager.d(Category.AUTO_KILL_BASE, "AutoKillManager: containsPackage: found as substring but boundaries failed: " + packageName);
-        return false;
+    private void completeSkippedKill(Runnable onComplete,
+            java.util.function.BiConsumer<Integer, Long> onResult) {
+        if (onResult != null) handler.post(() -> onResult.accept(0, 0L));
+        if (onComplete != null) handler.post(onComplete);
     }
 
     private String formatMemorySize(long kb) {
